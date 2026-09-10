@@ -44,8 +44,8 @@ fit <- Ombmm_FeatSaliency(
   #  Increase Feature Inclusion Pressure
   a_rho = 2, b_rho = 5, # Encourages more features (Expected inclusion ~28%)
   #Force Component Sparsity
-   #e0 = 0.001,           # results: ahrqMA_sambo_3.27.26.rds
-  e0 = 0.01,       # results:ahrqMA_sambo_3.28.26.rds
+  e0 = 0.001,           # results: ahrqMA_sambo_3.27.26.rds
+  #e0 = 0.01,       # results:ahrqMA_sambo_3.28.26.rds
   priorOnAlpha = "no", 
   plot_trace = FALSE
 )
@@ -53,7 +53,8 @@ fit <- Ombmm_FeatSaliency(
 end_time <- Sys.time()
 runtime_sec <- as.numeric(difftime(end_time, start_time, units = "secs")) 
 
-out_file <- sprintf("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambo_3.28.26.rds")
+#out_file <- sprintf("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambamix_8.24.26.rds")
+out_file <- sprintf("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambamix_8.28.26.rds")
 
 saveRDS(list(fit, runtime_sec), out_file)
 

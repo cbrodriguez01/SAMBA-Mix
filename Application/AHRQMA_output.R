@@ -1,4 +1,4 @@
-#Going over model output
+#Going over model output-- updated in September 9, 2026 to add map for all census tracts
 setwd("~/bayesmbmm/results")
 library(nimble)
 library(ggplot2)
@@ -26,7 +26,9 @@ feature_names <- c(
   "Veteran", "Smartphone Only", "Disabled"
 )
 
-res <- readRDS("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambo_3.27.26.rds")
+#res <- readRDS("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambo_3.27.26.rds")
+res <- readRDS("/n/netscratch/stephenson_lab/Lab/crodriguez/AHRQ_application/ahrqMA_sambamix_8.28.26.rds")
+
 fit <- res[[1]]
 runtime <- res[[2]]/3600 # 10 hours
 Kmode<-fit$K
@@ -39,6 +41,7 @@ mcmc_samples <- fit$modeloutput_perchain$parameters.ECR.mcmc
 #samples more so that we have niter=20k and burnin=9k
 
 mcmc_samples_burned<-mcmc_samples[-c(1:3000), ]
+saveRDS(mcmc_samples_burned, file = "~/Mbeta_Project/mcmc_samples_burned_SAMBAmix_AHRQ_8.28.26.rds")
 
 
 sum_stats<-samplesSummary(mcmc_samples_burned)
@@ -87,7 +90,7 @@ full_table <- do.call(cbind, cluster_tables)
 rownames(full_table) <- feature_names
 
 
-#i want ot get word doc table
+#i want to get word doc table
 
 # Function to extract and format: "Mean (LCI-UCI)"
 get_formatted_cluster <- function(k, stats, names) {
@@ -128,11 +131,11 @@ ft <- flextable(word_df) %>%
 #  Export to Word
 read_docx() %>%
   body_add_flextable(ft) %>%
-  print(target = "~/bayesmbmm/results/figures_tabs/AHRQ_MA_Cluster_Results_4.3.26.docx")
+  print(target = "~/bayesmbmm/results/figures_tabs/AHRQ_MA_Cluster_Results_9.9.26.docx")
 
 
 
-#We want to group by domain
+#We want to group by domain to be able to plot
 var_info <- data.frame(
   Variable = c(
     # Economic
@@ -334,6 +337,228 @@ ggsave("figures_tabs/ForestPlot_MA_AHRQ_domain.pdf", final_plot)
 
 
 
+########different format##########
+
+# ---------------------------------------------------------
+# Y-axis structure
+# ---------------------------------------------------------
+
+y_levels <- c(
+  "Economic context",
+  "Unemployment", "Low Income", "Public Assistance",
+  
+  "Education",
+  "Low Ed",
+  
+  "Healthcare context",
+  "Medicaid",
+  
+  "Physical infrastructure",
+  "No Comp Dev", "No Internet", "Rent-overcrowd",
+  "Renter-occupied", "No Vehicle", "Group Qrt", "Smartphone Only",
+  
+  "Social context",
+  "Foreign Born", "English Not All", "Limited English",
+  "Single-parent", "Veteran", "Disabled"
+)
+
+headers <- c(
+  "Economic context",
+  "Education",
+  "Healthcare context",
+  "Physical infrastructure",
+  "Social context"
+)
+
+# ---------------------------------------------------------
+# Add blank rows for domain headings
+# ---------------------------------------------------------
+
+headers_df <- data.frame(
+  Variable = headers,
+  Mean = NA,
+  LCI = NA,
+  UCI = NA,
+  Cluster = NA
+)
+
+plot_data_final <- bind_rows(
+  plot_data_active,
+  headers_df
+)
+
+plot_data_final$Variable <- factor(
+  plot_data_final$Variable,
+  levels = rev(y_levels)
+)
+
+plot_data_final <- plot_data_final %>%
+  mutate(
+    is_header = Variable %in% headers,
+    label = Variable
+  )
+
+
+# ---------------------------------------------------------
+# LEFT PANEL
+# Domain headings + variable labels
+# ---------------------------------------------------------
+
+p_left <- ggplot(
+  plot_data_final,
+  aes(y = Variable)
+) +
+  geom_text(
+    aes(
+      x = ifelse(is_header, 0, 0.25),
+      label = Variable,
+      fontface = ifelse(is_header, "bold", "plain")
+    ),
+    hjust = 0,
+    size = 3.8
+  ) +
+  scale_y_discrete(
+    limits = levels(plot_data_final$Variable),
+    drop = FALSE
+  ) +
+  xlim(0, 1) +
+  theme_void() +
+  theme(
+    plot.margin = margin(
+      t = 5,
+      r = 0,
+      b = 5,
+      l = 5
+    )
+  )
+
+
+# ---------------------------------------------------------
+# RIGHT PANEL
+# One panel per profile
+# ---------------------------------------------------------
+
+p_right <- ggplot(
+  data = plot_data_final %>% filter(!is.na(Mean)),
+  aes(
+    x = Mean,
+    y = Variable,
+    color = Cluster,
+    shape = Cluster
+  )
+) +
+  
+  # Confidence intervals
+  geom_errorbarh(
+    aes(
+      xmin = LCI,
+      xmax = UCI
+    ),
+    height = 0.25,
+    linewidth = 0.7
+  ) +
+  
+  # Posterior means
+  geom_point(
+    size = 2
+  ) +
+  
+  # Separate panel for each profile
+  facet_grid(
+    . ~ Cluster,
+    scales = "free_x"
+  ) +
+  
+  scale_y_discrete(
+    limits = levels(plot_data_final$Variable),
+    drop = FALSE
+  ) +
+  
+  scale_color_manual(
+    values = c(
+      "#2c7bb6",
+      "#d7191c",
+      "#fdae61"
+    ),
+    guide = "none"
+  ) +
+  
+  scale_shape_manual(
+    values = c(
+      16,
+      17,
+      18
+    ),
+    guide = "none"
+  ) +
+  
+  scale_x_continuous(
+    expand = expansion(mult = c(0.05, 0.08))
+  ) +
+  
+  labs(
+    x = "Mean proportion",
+    y = NULL
+  ) +
+  
+  theme_minimal(base_size = 14) +
+  
+  theme(
+    # remove duplicated y labels
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    
+    # facet titles
+    strip.text = element_text(
+      size = 14,
+      face = "bold"
+    ),
+    
+    strip.background = element_rect(
+      fill = "grey92",
+      color = "grey70",
+      linewidth = 0.5
+    ),
+    
+    # emphasize horizontal structure
+    panel.grid.major.y = element_line(
+      color = "grey90",
+      linewidth = 0.5
+    ),
+    
+    panel.grid.minor = element_blank(),
+    
+    plot.margin = margin(
+      t = 5,
+      r = 5,
+      b = 5,
+      l = 0
+    )
+  )
+
+
+# ---------------------------------------------------------
+# COMBINE LABEL PANEL + PROFILE PANELS
+# ---------------------------------------------------------
+
+final_plot <- p_left + p_right +
+  plot_layout(
+    widths = c(2.3, 7)
+  )
+
+final_plot
+
+
+
+
+
+ggsave("figures_tabs/ForestPlot_MA_AHRQ_domain_cols.pdf", final_plot)
+
+
+##########
+
+
+
 #lollipop
 # Calculate 'Impact' as the difference between Cluster 2 and the State average (Cluster 1)
 c1c2_data <- plot_data_active %>%
@@ -429,27 +654,181 @@ ma_shape <- tracts(state = "MA", cb = TRUE)
 # 021=Norfolk (Quincy), 009=Essex (Lynn)
 
 boston_metro <- ma_shape  %>% filter(COUNTYFP %in% c("025", "017", "021", "009"))
-
 map_df <- boston_metro %>%
-  left_join(macomp, by = "GEOID")
-
-
+  right_join(macomp, by = "GEOID")
 bmap<-ggplot(map_df) +
   geom_sf(aes(fill = as.factor(cluster_assignment_ecr)), color = NA) +
-  scale_fill_manual(values = c("1" = "#2c7bb6", "2" = "#d7191c", "3" = "#fdae61"),
-                    labels = c("Cluster 1", "Cluster 2", "Cluster 3"),
-                    name = "NSDoH Profile") +
-  theme_void() +
-  labs(title = "Geographic Distribution of SDOH Clusters in Boston Metro Counties",
-       subtitle = "Massachusetts Census Tracts (AHRQ 2020)")+ 
+  scale_fill_manual(values = c("1" = "#2c7bb6", "2" = "#d7191c", "3" = "#fdae61")) + 
+  theme_void() + 
+  #labs(title = "Geographic Distribution of SDOH Clusters in Boston Metro Counties",
+  #     subtitle = "Massachusetts Census Tracts (AHRQ 2020)")+ 
   annotate("text", x = -71.0589, y = 42.3601, label = "Boston", fontface = "bold") +
-  annotate("text", x = -71.1097, y = 42.3736, label = "Cambridge", fontface = "italic") +
-  annotate("text", x = -71.07, y = 42.30, label = "Dorchester", size = 3)
-
-
+  annotate("text", x = -71.1097, y = 42.3736, label = "Cambridge", fontface = "italic") 
+  #annotate("text", x = -71.07, y = 42.30, label = "Dorchester", size = 3)
 ggsave("figures_tabs/bostonmetromap_MAAHRQ.pdf", bmap, width = 7, height = 5)
 
+#UPDATED MAP: 9/9/26
+map_df_all <- ma_shape %>%
+  right_join(macomp, by = "GEOID")
 
+statemap<-ggplot(map_df_all) +
+  geom_sf(aes(fill = as.factor(cluster_assignment_ecr)), color = NA) +
+  scale_fill_manual(values = c("1" = "#2c7bb6", "2" = "#d7191c", "3" = "#fdae61"),
+                    labels = c("Profile 1", "Profile 2", "Profile 3"),
+                    name = "NSDoH Profile") + theme_void() 
+ # labs(title = "Geographic Distribution of NSDoH Profiles ",
+  #     subtitle = "Massachusetts Census Tracts (AHRQ 2020)")
+ggsave("figures_tabs/MAmapSept_MAAHRQ.pdf", statemap, width = 7, height = 5)
+
+statemap + bmap +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+
+#################################################################################
+#updated map-- with inset
+#https://upgo.lab.mcgill.ca/2019/12/13/making-beautiful-maps/
+
+map_df_all <- ma_shape %>%
+  right_join(macomp, by = "GEOID")
+
+boston_xlim <- c(-71.35, -70.85)
+boston_ylim <- c(42.15, 42.60)
+
+locator_box <- data.frame(
+  xmin = boston_xlim[1], xmax = boston_xlim[2],
+  ymin = boston_ylim[1], ymax = boston_ylim[2]
+)
+
+
+
+
+statemap <- ggplot(map_df_all) +
+  geom_sf(
+    aes(fill = as.factor(cluster_assignment_ecr)),
+    color = NA,
+    linewidth = 0.05
+  ) +
+  # Locator box: shows the viewer exactly what area the inset zooms into
+  geom_rect(
+    data = locator_box,
+    aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+    inherit.aes = FALSE,
+    fill = NA,
+    color = "black",
+    linewidth = 0.5,
+    linetype = "dashed"
+  ) +
+  
+  scale_fill_manual(
+    values = c(
+      "1" = "#2c7bb6",
+      "2" = "#d7191c",
+      "3" = "#fdae61"
+    ),
+    labels = c(
+      "Profile 1",
+      "Profile 2",
+      "Profile 3"
+    ),
+    name = "NSDoH Profile"
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(face = "bold")
+  )
+
+
+#Greater boston
+bmap <- ggplot(map_df_all) +
+  geom_sf(
+    aes(fill = as.factor(cluster_assignment_ecr)),
+    color = NA,
+    linewidth = 0.08
+  ) +
+  scale_fill_manual(
+    values = c(
+      "1" = "#2c7bb6",
+      "2" = "#d7191c",
+      "3" = "#fdae61"
+    )
+  ) +
+  
+  # Zoom to Greater Boston
+  coord_sf(
+    xlim = c(-71.35, -70.85),
+    ylim = c(42.15, 42.60),
+    expand = FALSE
+  ) +
+  
+  # annotate(
+  #   "text",
+  #   x = -71.0589,
+  #   y = 42.3601,
+  #   label = "Boston",
+  #   fontface = "bold",
+  #   size = 3
+  # ) +
+  # 
+  # annotate(
+  #   "text",
+  #   x = -71.1097,
+  #   y = 42.3736,
+  #   label = "Cambridge",
+  #   fontface = "italic",
+  #   size = 3
+  # ) +
+  
+  labs(
+    title = "Greater Boston"
+  ) +
+  
+  theme_void() +
+  
+  # Remove duplicate legend and add inset border
+  theme(
+    legend.position = "none",
+    
+    plot.title = element_text(
+      size = 10,
+      face = "bold",
+      hjust = 0.5,
+      margin = margin(b = 3)
+    ),
+    
+    panel.border = element_rect(
+      color = "black",
+      fill = NA,
+      linewidth = 0.7
+    ),
+    
+    plot.background = element_rect(
+      fill = "white",
+      color = "black",
+      linewidth = 0.7
+    )
+  )
+
+
+# Add inset
+
+final_map <- statemap +
+  inset_element(
+    bmap,
+    
+    # position of inset within statewide figure
+    left   = 0.80,
+    bottom = 0.49,
+    right  = 0.98,
+    top    = 0.97,
+    align_to = "full"
+  )
+
+
+final_map
+
+ggsave("figures_tabs/statewithinset_MAAHRQ.pdf", final_map, width = 7, height = 5)
 
 #################################################################################
 #################################################################################
@@ -525,11 +904,3 @@ mcmc_trace(mu_samples3,
            pars = paste0("mu[", 3, ", ", 11:18, "]"),
            facet_args = list(ncol = 2)) +
   ggtitle("Trace plots for mu  (cluster 3)")
-
-#################################################################################
-#################################################################################
-#################################################################################
-
-
-
-
